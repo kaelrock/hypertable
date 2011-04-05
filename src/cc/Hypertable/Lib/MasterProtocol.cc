@@ -122,6 +122,19 @@ namespace Hypertable {
     return cbuf;
   }
 
+
+  CommBuf *
+  MasterProtocol::create_move_range_explicit_request(const TableIdentifier *table,
+                        const RangeSpec &range, const String &target) {
+    CommHeader header(COMMAND_MOVE_RANGE_EXPLICIT);
+    CommBuf *cbuf = new CommBuf(header, table->encoded_length()
+             + range.encoded_length() + encoded_length_vstr(target));
+    table->encode(cbuf->get_data_ptr_address());
+    range.encode(cbuf->get_data_ptr_address());
+    cbuf->append_vstr(target);
+    return cbuf;
+  }
+
   CommBuf *
   MasterProtocol::create_relinquish_acknowledge_request(const TableIdentifier *table,
                                                         const RangeSpec &range) {

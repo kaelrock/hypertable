@@ -112,6 +112,12 @@ namespace Hypertable {
                     const String &log_dir, uint64_t soft_limit,
                     bool split, Timer *timer=0);
 
+    void move_range_explicit(TableIdentifier *table, RangeSpec &range,
+                             const String &target, DispatchHandler *handler,
+                             Timer *timer = 0);
+    void move_range_explicit(TableIdentifier *table, RangeSpec &range,
+                             const String &target, Timer *timer=0);
+
     void relinquish_acknowledge(TableIdentifier *table, RangeSpec &range,
                                 DispatchHandler *handler, Timer *timer = 0);
     void relinquish_acknowledge(TableIdentifier *table, RangeSpec &range,

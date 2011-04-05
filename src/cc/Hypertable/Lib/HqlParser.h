@@ -95,6 +95,7 @@ namespace Hypertable {
       COMMAND_DROP_NAMESPACE,
       COMMAND_RENAME_TABLE,
       COMMAND_WAIT_FOR_MAINTENANCE,
+      COMMAND_MOVE_RANGE,
       COMMAND_MAX
     };
 
@@ -1540,6 +1541,7 @@ namespace Hypertable {
 
           Token CREATE       = as_lower_d["create"];
           Token DROP         = as_lower_d["drop"];
+          Token MOVE         = as_lower_d["move"];
           Token ADD          = as_lower_d["add"];
           Token USE          = as_lower_d["use"];
           Token RENAME       = as_lower_d["rename"];
@@ -1729,6 +1731,11 @@ namespace Hypertable {
                 COMMAND_REPLAY_COMMIT)]
             | exists_table_statement[set_command(self.state, COMMAND_EXISTS_TABLE)]
             | wait_for_maintenance_statement[set_command(self.state, COMMAND_WAIT_FOR_MAINTENANCE)]
+            | move_range_statement[set_command(self.state, COMMAND_MOVE_RANGE)]
+            ;
+
+          move_range_statement
+            = MOVE >> RANGE >> range_spec >> user_identifier[set_str(self.state)]
             ;
 
           drop_range_statement
@@ -2310,6 +2317,7 @@ namespace Hypertable {
           BOOST_SPIRIT_DEBUG_RULE(replay_start_statement);
           BOOST_SPIRIT_DEBUG_RULE(replay_log_statement);
           BOOST_SPIRIT_DEBUG_RULE(replay_commit_statement);
+          BOOST_SPIRIT_DEBUG_RULE(move_range_statement);
 #endif
         }
 
@@ -2347,7 +2355,7 @@ namespace Hypertable {
           close_statement, shutdown_statement, shutdown_master_statement, 
           drop_range_statement, replay_start_statement, replay_log_statement,
           replay_commit_statement, cell_interval, cell_predicate,
-          cell_spec, wait_for_maintenance_statement;
+          cell_spec, wait_for_maintenance_statement, move_range_statement;
       };
 
       ParserState &state;

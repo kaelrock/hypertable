@@ -35,6 +35,7 @@ OperationDropTable.cc
 OperationGatherStatistics.cc
 OperationInitialize.cc
 OperationMoveRange.cc
+OperationMoveRangeExplicit.cc
 OperationProcessor.cc
 OperationRecoverServer.cc
 OperationRegisterServer.cc
