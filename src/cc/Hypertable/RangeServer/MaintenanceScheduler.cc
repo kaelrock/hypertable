@@ -58,8 +58,10 @@ MaintenanceScheduler::MaintenanceScheduler(MaintenanceQueuePtr &queue, RSStatsPt
   m_query_cache_memory = get_i64("Hypertable.RangeServer.QueryCache.MaxMemory");
   // Setup to immediately schedule maintenance
   boost::xtime_get(&m_last_maintenance, TIME_UTC);
+  memcpy(&m_last_low_memory, &m_last_maintenance, sizeof(boost::xtime));
   m_last_maintenance.sec -= m_maintenance_interval / 1000;
   m_low_memory_limit_percentage = get_i32("Hypertable.RangeServer.LowMemoryLimit.Percentage");
+  m_merging_delay = get_i32("Hypertable.RangeServer.Maintenance.MergingCompaction.Delay");
 }
 
 
@@ -72,6 +74,7 @@ void MaintenanceScheduler::schedule() {
   String ag_name;
   String trace_str = "STAT ***** MaintenanceScheduler::schedule() *****\n";
   MaintenancePrioritizer::MemoryState memory_state;
+  bool low_memory = low_memory_mode();
 
   memory_state.balance = Global::memory_tracker->balance();
   memory_state.limit = Global::memory_limit;
@@ -85,7 +88,7 @@ void MaintenanceScheduler::schedule() {
       memory_state.limit = memory_state.balance - excess;
   }
 
-  if (low_memory_mode()) {
+  if (low_memory) {
     if (Global::maintenance_queue->pending() < Global::maintenance_queue->workers())
       m_scheduling_needed = true;
     int64_t excess = (memory_state.balance > memory_state.limit) ? memory_state.balance - memory_state.limit : 0;
@@ -96,6 +99,8 @@ void MaintenanceScheduler::schedule() {
   boost::xtime_get(&now, TIME_UTC);
   int64_t millis_since_last_maintenance =
     xtime_diff_millis(m_last_maintenance, now);
+
+  bool do_merges = !low_memory && xtime_diff_millis(m_last_low_memory, now) >= (int64_t)m_merging_delay;
 
   if (!m_scheduling_needed &&
       millis_since_last_maintenance < m_maintenance_interval)
@@ -234,6 +239,8 @@ void MaintenanceScheduler::schedule() {
     struct RangeStatsAscending ordering;
     sort(range_data_prioritized.begin(), range_data_prioritized.end(), ordering);
 
+    bool scheduled_merging = false;
+
     for (size_t i=0; i<range_data_prioritized.size(); i++) {
       if (range_data_prioritized[i]->maintenance_flags & MaintenanceFlag::SPLIT) {
         RangePtr range(range_data_prioritized[i]->range);
@@ -248,8 +255,13 @@ void MaintenanceScheduler::schedule() {
         RangePtr range(range_data_prioritized[i]->range);
 	task = new MaintenanceTaskCompaction(schedule_time, range);
 	for (AccessGroup::MaintenanceData *ag_data=range_data_prioritized[i]->agdata; ag_data; ag_data=ag_data->next) {
-	  if (ag_data->maintenance_flags & MaintenanceFlag::COMPACT)
-	    task->add_subtask(ag_data->ag, ag_data->maintenance_flags);
+          if (do_merges && !scheduled_merging &&
+              (ag_data->maintenance_flags & MaintenanceFlag::COMPACT_MERGING)) {
+            scheduled_merging = true;
+            task->add_subtask(ag_data->ag, ag_data->maintenance_flags);
+          }
+          else if (ag_data->maintenance_flags & MaintenanceFlag::COMPACT)
+            task->add_subtask(ag_data->ag, ag_data->maintenance_flags);
 	}
         Global::maintenance_queue->add(task);
       }
